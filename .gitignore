@@ -39,3 +39,36 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# uploads & database
+/uploads
+*.db
+*.db-journal
+
+# deploy
+deploy.sh
+deploy.mjs
+.env.deploy
+
+# secrets & keys
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+id_rsa*
+*.secret
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# logs
+*.log
