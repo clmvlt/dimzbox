@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/auth";
 import { config } from "@/lib/config";
-import { v4 as uuidv4 } from "uuid";
+import { nanoid } from "nanoid";
 import path from "node:path";
 import fs from "node:fs";
 import { Readable } from "node:stream";
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     fs.mkdirSync(userDir, { recursive: true });
 
     // Sauvegarder le fichier
-    const storedName = `${uuidv4()}${ext}`;
+    const storedName = `${nanoid()}${ext}`;
     const filePath = path.join(userDir, storedName);
 
     const nodeStream = Readable.fromWeb(file.stream() as never);
