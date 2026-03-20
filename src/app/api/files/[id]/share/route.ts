@@ -2,6 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { nanoid } from "nanoid";
+import { z } from "zod/v4";
+
+// MED-02: Validation Zod pour le body de création de lien
+const ShareSchema = z.object({
+  expirationDays: z.number().int().min(1).max(30).default(7),
+  maxDownloads: z.number().int().min(1).optional(),
+});
 
 export async function GET(
   _request: Request,
@@ -53,13 +60,15 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}));
-    const expirationDays = Math.min(
-      Math.max(body.expirationDays ?? config.share.defaultExpirationDays, 1),
-      config.share.maxExpirationDays
-    );
-    const maxDownloads = body.maxDownloads
-      ? Math.max(1, Number(body.maxDownloads))
-      : null;
+    const parsed = ShareSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Paramètres invalides", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { expirationDays, maxDownloads } = parsed.data;
 
     const token = nanoid(config.share.tokenLength);
     const expiresAt = new Date(
@@ -70,7 +79,7 @@ export async function POST(
       data: {
         token,
         fileId: id,
-        maxDownloads,
+        maxDownloads: maxDownloads ?? null,
         expiresAt,
       },
     });

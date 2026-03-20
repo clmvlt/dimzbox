@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/auth";
-import fs from "node:fs";
+import fs from "node:fs/promises";
 
 export async function DELETE(
   _request: Request,
@@ -22,9 +22,9 @@ export async function DELETE(
       return Response.json({ error: "Non autorisé" }, { status: 403 });
     }
 
-    // Supprimer le fichier du disque
+    // Supprimer le fichier du disque (FILE-01: async au lieu de sync)
     try {
-      fs.unlinkSync(file.path);
+      await fs.unlink(file.path);
     } catch {
       // Fichier peut déjà avoir été supprimé
     }
