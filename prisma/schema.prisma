@@ -27,6 +27,8 @@ model File {
   shareLinks   ShareLink[]
   createdAt    DateTime    @default(now())
   expiresAt    DateTime?
+
+  @@index([userId])
 }
 
 model ShareLink {
@@ -34,9 +36,11 @@ model ShareLink {
   token         String    @unique
   fileId        String
   file          File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  password      String?
   maxDownloads  Int?
   downloadCount Int       @default(0)
   expiresAt     DateTime?
   createdAt     DateTime  @default(now())
+
+  @@index([fileId])
+  @@index([expiresAt])
 }
