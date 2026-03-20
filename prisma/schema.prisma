@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id         String   @id @default(cuid())
+  ipAddress  String   @unique
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  files      File[]
+}
+
+model File {
+  id           String      @id @default(cuid())
+  name         String
+  originalName String
+  size         BigInt
+  mimeType     String
+  path         String
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareLinks   ShareLink[]
+  createdAt    DateTime    @default(now())
+  expiresAt    DateTime?
+}
+
+model ShareLink {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  fileId        String
+  file          File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  password      String?
+  maxDownloads  Int?
+  downloadCount Int       @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+}
