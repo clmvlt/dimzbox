@@ -2,15 +2,15 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { createClient } from "@libsql/client";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// LOW-04: Utiliser __dirname au lieu de process.cwd() pour un chemin stable
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.resolve(__dirname, "../../prisma/dev.db");
+// LOW-04: Utiliser DATABASE_PATH si défini, sinon process.cwd()
+const dbPath = process.env.DATABASE_PATH
+  ? path.resolve(process.env.DATABASE_PATH)
+  : path.resolve(process.cwd(), "prisma/dev.db");
 const dbUrl = `file:${dbPath}`;
 
 const adapter = new PrismaLibSql({ url: dbUrl });
