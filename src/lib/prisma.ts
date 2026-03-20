@@ -16,11 +16,15 @@ const dbUrl = `file:${dbPath}`;
 const adapter = new PrismaLibSql({ url: dbUrl });
 
 // DB-03: Enable WAL mode for better concurrent read performance
-const walClient = createClient({ url: dbUrl });
-walClient
-  .execute("PRAGMA journal_mode=WAL")
-  .then(() => walClient.close())
-  .catch(() => walClient.close());
+try {
+  const walClient = createClient({ url: dbUrl });
+  walClient
+    .execute("PRAGMA journal_mode=WAL")
+    .then(() => walClient.close())
+    .catch(() => walClient.close());
+} catch {
+  // Ignore WAL setup errors - not critical
+}
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 

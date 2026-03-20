@@ -94,8 +94,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Upload error:", error);
+    const message = error instanceof Error ? error.message : String(error);
     return Response.json(
-      { error: "Erreur lors de l'upload" },
+      { error: "Erreur lors de l'upload", details: message },
       { status: 500 }
     );
   }
