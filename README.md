@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DimzBox
 
-## Getting Started
+Application web de partage de fichiers, simple et sans inscription. Les utilisateurs sont identifiés automatiquement par leur adresse IP.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, TypeScript)
+- **Tailwind CSS v4** + **shadcn/ui**
+- **Prisma 7** + **SQLite** (via libsql)
+- **Zod** + **React Hook Form** (validation)
+- **react-dropzone** (upload)
+
+## Fonctionnalites
+
+- Upload de fichiers (drag & drop ou selection)
+- Dashboard avec liste des fichiers et statistiques de stockage
+- Liens de partage avec expiration configurable et protection par mot de passe
+- Page de telechargement publique avec apercu OpenGraph
+- Limite de telechargements par lien
+- Detection automatique de mise a jour (polling version)
+
+## Limites par defaut
+
+| Parametre | Valeur |
+|---|---|
+| Taille max par fichier | 100 Go |
+| Stockage max par utilisateur | 500 Go |
+| Fichiers max par utilisateur | 1000 |
+| Expiration lien par defaut | 7 jours |
+| Expiration lien max | 30 jours |
+
+## Installation
 
 ```bash
+# Installer les dependances
+npm install
+
+# Generer le client Prisma
+npx prisma generate
+
+# Appliquer les migrations
+npx prisma migrate dev
+
+# Lancer le serveur de dev
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+L'application est accessible sur `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables d'environnement
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Creer un fichier `.env` a la racine :
 
-## Learn More
+```env
+DATABASE_URL="file:./dev.db"
+UPLOAD_DIR="./uploads"
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Commande | Description |
+|---|---|
+| `npm run dev` | Serveur de developpement |
+| `npm run build` | Build production |
+| `npm run start` | Lancer en production |
+| `npm run lint` | Linter |
+| `npm run version:patch` | Bump version patch |
+| `npm run version:minor` | Bump version minor |
+| `npm run version:major` | Bump version major |
+| `npm run deploy` | Build + deploy SSH |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Structure du projet
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+  app/
+    api/          # Routes API (upload, files, share, download, stats, version)
+    d/[token]/    # Page publique de telechargement
+  components/
+    ui/           # Composants shadcn/ui
+    dashboard.tsx, file-list.tsx, file-upload.tsx, share-dialog.tsx ...
+  hooks/          # Hooks custom (useVersionCheck)
+  lib/            # Utilitaires (prisma, auth, config, format, clipboard, file-icons)
+prisma/
+  schema.prisma   # Schema de la base de donnees
+  migrations/     # Migrations SQL
+uploads/          # Fichiers uploades (gitignored)
+```
