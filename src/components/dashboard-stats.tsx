@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -24,9 +25,14 @@ export interface Stats {
 }
 
 export function DashboardStats({ stats }: { stats: Stats }) {
-  const storagePercent = stats.storageMax
-    ? Math.round((stats.storageUsed / stats.storageMax) * 100)
-    : 0;
+  // MEM-02: Memoize le calcul de pourcentage
+  const storagePercent = useMemo(
+    () =>
+      stats.storageMax
+        ? Math.round((stats.storageUsed / stats.storageMax) * 100)
+        : 0,
+    [stats.storageUsed, stats.storageMax]
+  );
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

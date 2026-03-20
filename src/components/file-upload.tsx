@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloudIcon, Loader2Icon, CheckCircleIcon } from "lucide-react";
-import { config } from "@/lib/config";
+import { CLIENT_CONFIG } from "@/lib/config.client";
 import { formatFileSize } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -27,11 +27,26 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
     total: number;
   } | null>(null);
   const [justFinished, setJustFinished] = useState(false);
+  // MEM-01: Stocker la référence XHR pour pouvoir l'annuler au démontage
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Annuler l'upload en cours si le composant est démonté
+      if (xhrRef.current) {
+        xhrRef.current.abort();
+        xhrRef.current = null;
+      }
+    };
+  }, []);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       for (const file of acceptedFiles) {
-        if (file.size > config.upload.maxFileSize) {
+        if (file.size > CLIENT_CONFIG.maxFileSize) {
           toast.error(`${file.name} est trop volumineux (max 100 Go)`);
           continue;
         }
@@ -39,9 +54,7 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
         const ext = file.name.split(".").pop()?.toLowerCase();
         if (
           ext &&
-          (config.upload.blockedExtensions as readonly string[]).includes(
-            `.${ext}`
-          )
+          CLIENT_CONFIG.blockedExtensions.includes(`.${ext}`)
         ) {
           toast.error(`${file.name} : type de fichier non autorisé`);
           continue;
@@ -57,10 +70,11 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
           const response = await new Promise<UploadedFile>(
             (resolve, reject) => {
               const xhr = new XMLHttpRequest();
+              xhrRef.current = xhr;
               xhr.open("POST", "/api/upload");
 
               xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
+                if (e.lengthComputable && mountedRef.current) {
                   setUploadProgress({
                     name: file.name,
                     loaded: e.loaded,
@@ -70,6 +84,7 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
               };
 
               xhr.onload = () => {
+                xhrRef.current = null;
                 if (xhr.status >= 200 && xhr.status < 300) {
                   resolve(JSON.parse(xhr.responseText));
                 } else {
@@ -82,24 +97,37 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
                 }
               };
 
-              xhr.onerror = () => reject(new Error("Erreur réseau"));
+              xhr.onerror = () => {
+                xhrRef.current = null;
+                reject(new Error("Erreur réseau"));
+              };
+              xhr.onabort = () => {
+                xhrRef.current = null;
+                reject(new Error("Upload annulé"));
+              };
               xhr.send(formData);
             }
           );
+
+          if (!mountedRef.current) return;
 
           // Transition douce : bref état "terminé" avant de revenir au dropzone
           setJustFinished(true);
           onFileUploaded(response);
           toast.success(`${file.name} uploadé`);
         } catch (error) {
+          if (!mountedRef.current) return;
           toast.error(
             error instanceof Error ? error.message : "Erreur lors de l'upload"
           );
         }
       }
 
+      if (!mountedRef.current) return;
+
       // Petit délai pour que l'état "terminé" soit visible avant le reset
       setTimeout(() => {
+        if (!mountedRef.current) return;
         setUploading(false);
         setUploadProgress(null);
         setJustFinished(false);
@@ -191,7 +219,7 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
             </p>
             <p className="text-xs text-muted-foreground">
               ou cliquez pour parcourir — max{" "}
-              {formatFileSize(config.upload.maxFileSize)} par fichier
+              {formatFileSize(CLIENT_CONFIG.maxFileSize)} par fichier
             </p>
           </div>
         </div>

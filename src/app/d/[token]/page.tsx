@@ -6,17 +6,19 @@ import { getFileStyle } from "@/lib/file-icons";
 import { DownloadButton } from "./download-button";
 import { BoxIcon, AlertTriangleIcon } from "lucide-react";
 import { FileIcon } from "@/components/file-icon";
+import { cache } from "react";
 
 type Props = {
   params: Promise<{ token: string }>;
 };
 
-async function getShareLink(token: string) {
-  return prisma.shareLink.findUnique({
+// NEXT-02: Dédupliquer la requête Prisma entre generateMetadata et le rendu
+const getShareLink = cache((token: string) =>
+  prisma.shareLink.findUnique({
     where: { token },
     include: { file: true },
-  });
-}
+  })
+);
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;

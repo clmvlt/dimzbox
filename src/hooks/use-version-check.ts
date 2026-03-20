@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const CLIENT_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0";
-const POLL_INTERVAL = 30_000; // 30 secondes
+const POLL_INTERVAL = 300_000; // 5 minutes (CACHE-01)
 
 export function useVersionCheck() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -13,7 +13,7 @@ export function useVersionCheck() {
   useEffect(() => {
     async function check() {
       try {
-        const res = await fetch("/api/version", { cache: "no-store" });
+        const res = await fetch("/api/version");
         if (!res.ok) return;
         const data = await res.json();
         if (data.version && data.version !== CLIENT_VERSION) {
