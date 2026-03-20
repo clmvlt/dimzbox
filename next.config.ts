@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
+  experimental: {
+    // Le proxy buffer le body en mémoire (10 Mo par défaut).
+    // On augmente pour supporter les gros uploads (max 100 Go).
+    proxyClientMaxBodySize: "100gb",
+  },
   async headers() {
     return [
       {
