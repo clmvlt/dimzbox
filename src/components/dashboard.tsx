@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DashboardStats, type Stats } from "./dashboard-stats";
 import { FileUpload } from "./file-upload";
 import { FileList, type FileItem } from "./file-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BoxIcon } from "lucide-react";
 import { UpdateBanner } from "./update-banner";
+import { AuthDialog } from "./auth-dialog";
+import { UserMenu } from "./user-menu";
+
+interface AuthUser {
+  id: string;
+  username: string | null;
+  pseudo: string | null;
+  isAnonymous: boolean;
+}
 
 export function Dashboard() {
   const [stats, setStats] = useState<Stats>({
@@ -18,6 +27,7 @@ export function Dashboard() {
   });
   const [files, setFiles] = useState<FileItem[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   const silentRefresh = useCallback(async () => {
     try {
@@ -33,7 +43,34 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    silentRefresh().then(() => setInitialLoading(false));
+    // D'abord initialiser la session, puis charger les données
+    fetch("/api/account")
+      .then((res) => res.json())
+      .then((user) => {
+        setAuthUser(user);
+        return silentRefresh();
+      })
+      .then(() => setInitialLoading(false))
+      .catch(() => setInitialLoading(false));
+  }, [silentRefresh]);
+
+  const handleAuthenticated = useCallback(
+    (user: AuthUser) => {
+      setAuthUser(user);
+      // Recharger les fichiers après login/register
+      silentRefresh();
+    },
+    [silentRefresh]
+  );
+
+  const handleLogout = useCallback(() => {
+    // Après déconnexion, recharger pour obtenir une nouvelle session anonyme
+    fetch("/api/account")
+      .then((res) => res.json())
+      .then((user) => {
+        setAuthUser(user);
+        silentRefresh();
+      });
   }, [silentRefresh]);
 
   const handleFileUploaded = useCallback(
@@ -96,9 +133,16 @@ export function Dashboard() {
           <span className="text-xs text-muted-foreground tracking-wide">
             Partage de fichiers
           </span>
-          <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums">
-            v{process.env.NEXT_PUBLIC_APP_VERSION}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+              v{process.env.NEXT_PUBLIC_APP_VERSION}
+            </span>
+            {authUser && !authUser.isAnonymous ? (
+              <UserMenu user={authUser} onLogout={handleLogout} />
+            ) : (
+              <AuthDialog onAuthenticated={handleAuthenticated} />
+            )}
+          </div>
         </div>
       </header>
 
