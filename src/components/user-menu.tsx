@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOutIcon } from "lucide-react";
+import { LogOutIcon, ShieldIcon } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserMenuProps {
@@ -71,6 +71,12 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        {user.username === "dimz" && (
+          <DropdownMenuItem onClick={() => { window.location.href = "/admin"; }}>
+            <ShieldIcon />
+            Administration
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleLogout}>
           <LogOutIcon />
           Déconnexion
