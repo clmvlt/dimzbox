@@ -8,11 +8,26 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  ipAddress  String   @unique
-  createdAt  DateTime @default(now())
-  lastSeenAt DateTime @default(now())
-  files      File[]
+  id           String    @id @default(cuid())
+  username     String?   @unique
+  passwordHash String?
+  pseudo       String?
+  isAnonymous  Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  files        File[]
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model File {
