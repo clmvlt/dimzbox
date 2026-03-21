@@ -154,16 +154,16 @@ export function AdminPanel() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b border-red-500/20 bg-red-500/5">
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center gap-2 sm:gap-3">
           <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeftIcon className="h-4 w-4" />
           </Link>
           <div className="flex items-center gap-2">
-            <ShieldIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+            <ShieldIcon className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" />
             <h1 className="text-lg sm:text-xl font-bold tracking-tight">Admin</h1>
           </div>
-          <span className="hidden sm:inline text-xs text-muted-foreground">DimzBox</span>
+          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 hidden sm:inline-flex">Restreint</Badge>
           <div className="ml-auto">
             <Button
               variant="outline"
@@ -247,12 +247,12 @@ function OverviewTab({ stats, loading }: { stats: AdminStats | null; loading: bo
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
       {statCards.map((s) => (
-        <Card key={s.label}>
+        <Card key={s.label} className="border-red-500/10">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
               {s.label}
             </CardTitle>
-            <s.icon className="h-4 w-4 text-muted-foreground" />
+            <s.icon className="h-4 w-4 text-red-400/70" />
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold tabular-nums">{s.value}</div>
@@ -643,18 +643,18 @@ function SystemTab({ onRefresh }: { onRefresh: () => void }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-red-500/20">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <ShieldIcon className="h-4 w-4" />
+            <ShieldIcon className="h-4 w-4 text-red-500" />
             Sécurité
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-sm text-muted-foreground space-y-2">
-            <p>Accès admin restreint au compte <code className="text-xs bg-muted px-1.5 py-0.5 rounded">dimz</code>.</p>
+            <p>Accès admin restreint au compte <code className="text-xs bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded">dimz</code>.</p>
             <p>Toutes les actions admin sont vérifiées côté serveur via session cookie.</p>
-            <p>Les routes <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/api/admin/*</code> retournent 403 pour tout utilisateur non-admin.</p>
+            <p>Les routes <code className="text-xs bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded">/api/admin/*</code> retournent 403 pour tout utilisateur non-admin.</p>
           </div>
         </CardContent>
       </Card>

@@ -27,6 +27,7 @@ export function Dashboard() {
   });
   const [files, setFiles] = useState<FileItem[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   const silentRefresh = useCallback(async () => {
@@ -48,10 +49,14 @@ export function Dashboard() {
       .then((res) => res.json())
       .then((user) => {
         setAuthUser(user);
+        setAuthLoading(false);
         return silentRefresh();
       })
       .then(() => setInitialLoading(false))
-      .catch(() => setInitialLoading(false));
+      .catch(() => {
+        setAuthLoading(false);
+        setInitialLoading(false);
+      });
   }, [silentRefresh]);
 
   const handleAuthenticated = useCallback(
@@ -137,10 +142,12 @@ export function Dashboard() {
             <span className="hidden sm:inline text-[10px] text-muted-foreground/50 tabular-nums">
               v{process.env.NEXT_PUBLIC_APP_VERSION}
             </span>
-            {authUser && !authUser.isAnonymous ? (
-              <UserMenu user={authUser} onLogout={handleLogout} />
-            ) : (
-              <AuthDialog onAuthenticated={handleAuthenticated} />
+            {!authLoading && (
+              authUser && !authUser.isAnonymous ? (
+                <UserMenu user={authUser} onLogout={handleLogout} />
+              ) : (
+                <AuthDialog onAuthenticated={handleAuthenticated} />
+              )
             )}
           </div>
         </div>
