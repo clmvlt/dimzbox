@@ -15,9 +15,13 @@ Site web de partage de fichiers.
 
 ## Auth
 
-- Pas de comptes utilisateurs
-- Identification par adresse IP (src/lib/auth.ts)
-- User créé automatiquement au premier accès
+- Session par cookie httpOnly (dimzbox_session)
+- Utilisateurs anonymes créés automatiquement (cookie-based, pas d'IP)
+- Inscription simple : identifiant + pseudo + mot de passe (src/lib/auth.ts)
+- Login transfère les fichiers de la session anonyme vers le compte
+- Inscription "upgrade" l'utilisateur anonyme courant en compte
+- Mots de passe hashés avec scrypt (Node.js crypto natif)
+- Route unique /api/account (GET: user courant, POST: login/register/logout)
 
 ## Config partage
 

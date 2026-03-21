@@ -38,3 +38,22 @@ fs.readlink = function patchedReadlink(path, options, callback) {
     callback(err, result);
   });
 };
+
+// Patcher aussi fs.promises.readlink (utilisé par le code moderne / Next.js workers)
+const origPromisesReadlink = fs.promises.readlink;
+fs.promises.readlink = async function patchedPromisesReadlink(path, options) {
+  try {
+    return await origPromisesReadlink.call(fs.promises, path, options);
+  } catch (err) {
+    if (err.code === "EISDIR") {
+      const newErr = new Error(`EINVAL: invalid argument, readlink '${path}'`);
+      newErr.code = "EINVAL";
+      newErr.errno = -22;
+      newErr.syscall = "readlink";
+      newErr.path = path;
+      throw newErr;
+    }
+    throw err;
+  }
+};
+
