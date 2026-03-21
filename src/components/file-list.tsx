@@ -112,8 +112,8 @@ export function FileList({ files, loading, onFileDeleted }: FileListProps) {
 
   if (files.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <LucideFileIcon className="h-12 w-12 mx-auto mb-3 opacity-30" />
+      <div className="text-center py-8 sm:py-12 text-muted-foreground">
+        <LucideFileIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 opacity-30" />
         <p className="text-sm">Aucun fichier</p>
         <p className="text-xs mt-1">
           Uploadez votre premier fichier ci-dessus
@@ -124,83 +124,145 @@ export function FileList({ files, loading, onFileDeleted }: FileListProps) {
 
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[40%]">Nom</TableHead>
-            <TableHead>Taille</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead className="text-center">Téléchargements</TableHead>
-            <TableHead className="text-center">Liens</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {files.map((file) => (
-            <TableRow
-              key={file.id}
-              className={newIds.has(file.id) ? "animate-fade-in-up" : ""}
-            >
-              <TableCell>
-                <div className="flex items-center gap-3 min-w-0">
-                  <FileIcon
-                    fileName={file.name}
-                    mimeType={file.mimeType}
-                    size="sm"
-                  />
-                  <span
-                    className="truncate text-sm font-medium"
-                    title={file.name}
-                  >
-                    {file.name}
-                  </span>
+      {/* Mobile: card layout */}
+      <div className="space-y-2 md:hidden">
+        {files.map((file) => (
+          <div
+            key={file.id}
+            className={`rounded-lg border p-3 space-y-2 ${newIds.has(file.id) ? "animate-fade-in-up" : ""}`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <FileIcon
+                fileName={file.name}
+                mimeType={file.mimeType}
+                size="sm"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate" title={file.name}>
+                  {file.name}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                  <span className="tabular-nums">{formatFileSize(file.size)}</span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>{formatDate(file.createdAt)}</span>
                 </div>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
-                {formatFileSize(file.size)}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                {formatDate(file.createdAt)}
-              </TableCell>
-              <TableCell className="text-center">
-                <div className="flex items-center justify-center gap-1">
-                  <DownloadIcon className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-sm tabular-nums">
-                    {file.totalDownloads}
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell className="text-center">
-                <Badge variant="secondary" className="text-xs tabular-nums">
-                  {file.shareLinks.length}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <DownloadIcon className="h-3 w-3" />
+                  <span className="tabular-nums">{file.totalDownloads}</span>
+                </span>
+                <Badge variant="secondary" className="text-[10px] tabular-nums px-1.5 py-0">
+                  {file.shareLinks.length} lien{file.shareLinks.length !== 1 ? "s" : ""}
                 </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() =>
-                      setShareFile({ id: file.id, name: file.name })
-                    }
-                    title="Partager"
-                  >
-                    <ShareIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setDeletingFile(file)}
-                    title="Supprimer"
-                  >
-                    <TrashIcon className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </TableCell>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() =>
+                    setShareFile({ id: file.id, name: file.name })
+                  }
+                  title="Partager"
+                >
+                  <ShareIcon className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setDeletingFile(file)}
+                  title="Supprimer"
+                >
+                  <TrashIcon className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: table layout */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[40%]">Nom</TableHead>
+              <TableHead>Taille</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-center">Téléchargements</TableHead>
+              <TableHead className="text-center">Liens</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {files.map((file) => (
+              <TableRow
+                key={file.id}
+                className={newIds.has(file.id) ? "animate-fade-in-up" : ""}
+              >
+                <TableCell>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileIcon
+                      fileName={file.name}
+                      mimeType={file.mimeType}
+                      size="sm"
+                    />
+                    <span
+                      className="truncate text-sm font-medium"
+                      title={file.name}
+                    >
+                      {file.name}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
+                  {formatFileSize(file.size)}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {formatDate(file.createdAt)}
+                </TableCell>
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <DownloadIcon className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-sm tabular-nums">
+                      {file.totalDownloads}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge variant="secondary" className="text-xs tabular-nums">
+                    {file.shareLinks.length}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() =>
+                        setShareFile({ id: file.id, name: file.name })
+                      }
+                      title="Partager"
+                    >
+                      <ShareIcon className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setDeletingFile(file)}
+                      title="Supprimer"
+                    >
+                      <TrashIcon className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       <ShareDialog
         open={!!shareFile}

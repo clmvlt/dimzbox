@@ -166,8 +166,8 @@ export function ShareDialog({
 
           {/* Création d'un nouveau lien */}
           <div className="space-y-3">
-            <div className="flex gap-3">
-              <div className="flex-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div>
                 <Label className="text-xs mb-1">Expiration</Label>
                 <select
                   value={expirationDays}
@@ -181,8 +181,8 @@ export function ShareDialog({
                   <option value={30}>30 jours</option>
                 </select>
               </div>
-              <div className="flex-1">
-                <Label className="text-xs mb-1">Max téléchargements</Label>
+              <div>
+                <Label className="text-xs mb-1">Max DL</Label>
                 <Input
                   type="number"
                   min="1"
@@ -210,7 +210,7 @@ export function ShareDialog({
           <Separator />
 
           {/* Liste des liens existants */}
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-2 max-h-48 sm:max-h-64 overflow-y-auto">
             {loading ? (
               <div className="flex justify-center py-4">
                 <Loader2Icon className="h-5 w-5 animate-spin text-muted-foreground" />

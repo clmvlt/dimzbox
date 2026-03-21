@@ -125,16 +125,16 @@ export function Dashboard() {
     <div className="min-h-screen bg-background">
       <UpdateBanner />
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <BoxIcon className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold tracking-tight">DimzBox</h1>
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <BoxIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight">DimzBox</h1>
           </div>
-          <span className="text-xs text-muted-foreground tracking-wide">
+          <span className="hidden sm:inline text-xs text-muted-foreground tracking-wide">
             Partage de fichiers
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+            <span className="hidden sm:inline text-[10px] text-muted-foreground/50 tabular-nums">
               v{process.env.NEXT_PUBLIC_APP_VERSION}
             </span>
             {authUser && !authUser.isAnonymous ? (
@@ -146,7 +146,7 @@ export function Dashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <DashboardStats stats={stats} />
 
         <Card>

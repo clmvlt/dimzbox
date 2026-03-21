@@ -14,17 +14,19 @@ export function UpdateBanner() {
 
   return (
     <div className="border-b bg-primary/5 border-primary/20">
-      <div className="container mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-        <p className="text-sm">
-          <span className="font-medium">Nouvelle version disponible</span>
-          <span className="text-muted-foreground ml-2 text-xs tabular-nums">
+      <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-3">
+        <p className="text-xs sm:text-sm min-w-0">
+          <span className="font-medium">Mise à jour dispo</span>
+          <span className="hidden sm:inline font-medium">nible</span>
+          <span className="text-muted-foreground ml-1.5 sm:ml-2 text-[10px] sm:text-xs tabular-nums">
             {clientVersion} → {serverVersion}
           </span>
         </p>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={refresh}>
-            <RefreshCwIcon className="h-3.5 w-3.5 mr-1.5" />
-            Rafraîchir
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <Button size="sm" onClick={refresh} className="h-7 sm:h-8 text-xs sm:text-sm px-2.5 sm:px-3">
+            <RefreshCwIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 sm:mr-1.5" />
+            <span className="hidden sm:inline">Rafraîchir</span>
+            <span className="sm:hidden">MAJ</span>
           </Button>
           <Button
             variant="ghost"

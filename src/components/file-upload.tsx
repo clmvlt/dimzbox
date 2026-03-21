@@ -149,7 +149,7 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
     <div
       {...getRootProps()}
       className={`
-        relative border-2 border-dashed rounded-xl p-8 text-center
+        relative border-2 border-dashed rounded-xl p-5 sm:p-8 text-center
         transition-all duration-300 ease-out
         ${isDragActive ? "border-primary bg-primary/5 scale-[1.01]" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30"}
         ${uploading ? "pointer-events-none" : "cursor-pointer"}
