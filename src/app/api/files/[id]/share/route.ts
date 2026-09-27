@@ -4,10 +4,16 @@ import { config } from "@/lib/config";
 import { nanoid } from "nanoid";
 import { z } from "zod/v4";
 
-// MED-02: Validation Zod pour le body de création de lien
+// MED-02: Validation Zod pour le body de création de lien.
+// maxDownloads absent ou null = illimité (le client envoie null).
 const ShareSchema = z.object({
-  expirationDays: z.number().int().min(1).max(30).default(7),
-  maxDownloads: z.number().int().min(1).optional(),
+  expirationDays: z
+    .number()
+    .int()
+    .min(1)
+    .max(config.share.maxExpirationDays)
+    .default(config.share.defaultExpirationDays),
+  maxDownloads: z.number().int().min(1).max(1_000_000).nullish(),
 });
 
 export async function GET(
