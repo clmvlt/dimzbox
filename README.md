@@ -1,47 +1,47 @@
 # DimzBox
 
-Application web de partage de fichiers, simple et sans inscription. Les utilisateurs sont identifiés automatiquement par leur adresse IP.
+Application web de partage de fichiers, simple et sans inscription obligatoire. Chaque navigateur reçoit automatiquement une session anonyme ; créer un compte permet de retrouver ses fichiers partout.
 
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript)
 - **Tailwind CSS v4** + **shadcn/ui**
 - **Prisma 7** + **SQLite** (via libsql)
-- **Zod** + **React Hook Form** (validation)
-- **react-dropzone** (upload)
+- **Zod** (validation)
+- **react-dropzone** (dépôt de fichiers)
 
-## Fonctionnalites
+## Fonctionnalités
 
-- Upload de fichiers (drag & drop ou selection)
-- Dashboard avec liste des fichiers et statistiques de stockage
-- Liens de partage avec expiration configurable et protection par mot de passe
-- Page de telechargement publique avec apercu OpenGraph
-- Limite de telechargements par lien
-- Detection automatique de mise a jour (polling version)
+- Dépôt de fichiers n'importe où sur la page (ou sélection classique)
+- **Envois en parallèle** (3 fichiers à la fois) avec progression, débit et temps restant
+- **Upload résumable par morceaux** : coupure réseau, redémarrage du serveur ou
+  déploiement → l'envoi attend puis reprend exactement où il s'était arrêté.
+  Après un rechargement de page, redéposer le même fichier reprend l'envoi.
+- Liens de partage : expiration (1 à 30 jours) et nombre de téléchargements
+  (illimité ou limité), copie du lien en un clic
+- Téléchargements comptés une seule fois par client : les reprises (Range),
+  les gestionnaires multi-connexions et les requêtes HEAD ne consomment pas le quota
+- Page de téléchargement publique avec aperçu OpenGraph
+- Panel d'administration
+- Détection automatique de mise à jour (polling version)
 
-## Limites par defaut
+## Limites par défaut
 
-| Parametre | Valeur |
+| Paramètre | Valeur |
 |---|---|
 | Taille max par fichier | 100 Go |
 | Stockage max par utilisateur | 500 Go |
 | Fichiers max par utilisateur | 1000 |
-| Expiration lien par defaut | 7 jours |
+| Expiration lien par défaut | 7 jours |
 | Expiration lien max | 30 jours |
+| Uploads inachevés conservés | 48 h sans activité |
 
 ## Installation
 
 ```bash
-# Installer les dependances
 npm install
-
-# Generer le client Prisma
 npx prisma generate
-
-# Appliquer les migrations
 npx prisma migrate dev
-
-# Lancer le serveur de dev
 npm run dev
 ```
 
@@ -49,7 +49,7 @@ L'application est accessible sur `http://localhost:3000`.
 
 ## Variables d'environnement
 
-Creer un fichier `.env` a la racine :
+Créer un fichier `.env` à la racine :
 
 ```env
 DATABASE_URL="file:./dev.db"
@@ -60,29 +60,30 @@ UPLOAD_DIR="./uploads"
 
 | Commande | Description |
 |---|---|
-| `npm run dev` | Serveur de developpement |
+| `npm run dev` | Serveur de développement |
 | `npm run build` | Build production |
 | `npm run start` | Lancer en production |
 | `npm run lint` | Linter |
 | `npm run version:patch` | Bump version patch |
 | `npm run version:minor` | Bump version minor |
 | `npm run version:major` | Bump version major |
-| `npm run deploy` | Build + deploy SSH |
+| `npm run deploy` | Build + déploiement SSH |
 
 ## Structure du projet
 
 ```
 src/
   app/
-    api/          # Routes API (upload, files, share, download, stats, version)
-    d/[token]/    # Page publique de telechargement
+    api/upload/   # Upload résumable (POST init, PUT morceau, GET statut)
+    api/          # Autres routes (files, share, download, stats, account, admin)
+    d/[token]/    # Page publique de téléchargement
   components/
     ui/           # Composants shadcn/ui
-    dashboard.tsx, file-list.tsx, file-upload.tsx, share-dialog.tsx ...
-  hooks/          # Hooks custom (useVersionCheck)
-  lib/            # Utilitaires (prisma, auth, config, format, clipboard, file-icons)
+    dashboard.tsx, upload-dropzone.tsx, upload-queue-panel.tsx, file-list.tsx, share-dialog.tsx ...
+  hooks/          # useUploadQueue, useVersionCheck
+  lib/            # upload-queue (client), storage, security, share, prisma, auth, config…
 prisma/
-  schema.prisma   # Schema de la base de donnees
+  schema.prisma   # Schéma de la base de données
   migrations/     # Migrations SQL
-uploads/          # Fichiers uploades (gitignored)
+uploads/          # Fichiers uploadés (gitignored)
 ```

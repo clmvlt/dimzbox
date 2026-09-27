@@ -23,6 +23,19 @@ Site web de partage de fichiers.
 - Mots de passe hashés avec scrypt (Node.js crypto natif)
 - Route unique /api/account (GET: user courant, POST: login/register/logout)
 
+## Upload
+
+- Résumable, par morceaux : POST /api/upload (init) → PUT /api/upload/:id avec `Upload-Offset` → GET /api/upload/:id (offset courant)
+- La taille du fichier `.part` sur disque fait foi pour l'offset ; à la fin, un File est créé avec le même id que l'Upload
+- /api/upload est EXCLU du proxy (src/proxy.ts) : le proxy bufferise les bodies en mémoire. Les routes d'upload font leurs propres contrôles CSRF / rate limit (src/lib/security.ts)
+- Client : src/lib/upload-queue.ts (3 fichiers en parallèle, retry avec backoff, chunk réduit sur 413, reprise via empreinte nom:taille:lastModified)
+- Uploads inachevés purgés après 48 h sans activité (src/lib/storage.ts)
+
+## Téléchargements
+
+- Un client (IP) n'est compté qu'une fois par lien pendant 6 h (src/lib/download-grants.ts) : reprises Range / multi-connexions gratuites
+- HEAD implémenté explicitement : sinon Next exécute GET et compte un téléchargement
+
 ## Config partage
 
 - Max 100 Go par fichier
@@ -54,6 +67,8 @@ Site web de partage de fichiers.
 - npm run version:minor — bumper 0.0.x → 0.1.0
 - npm run version:major — bumper 0.x.x → 1.0.0
 - npm run deploy — build + upload SSH + install sur le serveur
+  (build dans .next-build via NEXT_DIST_DIR pendant que .next sert, puis échange + pm2 restart ;
+  uploads/ et la base ne sont jamais copiés/restaurés, sauvegarde SQLite dans prisma/backups/)
 - La version est injectée au build via NEXT_PUBLIC_APP_VERSION
 - Le client poll /api/version toutes les 30s et affiche une bannière si mise à jour dispo
 - Config deploy dans .env.deploy (gitignored)
