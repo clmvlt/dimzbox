@@ -17,6 +17,7 @@ model User {
   lastSeenAt   DateTime  @default(now())
   files        File[]
   sessions     Session[]
+  uploads      Upload[]
 }
 
 model Session {
@@ -44,6 +45,28 @@ model File {
   expiresAt    DateTime?
 
   @@index([userId])
+}
+
+// Upload en cours (résumable, envoyé par morceaux).
+// Le fichier partiel vit dans `path` ; sa taille sur disque fait foi pour l'offset.
+// À la finalisation, un File est créé avec le même id et cette ligne est supprimée.
+model Upload {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalName String
+  size         BigInt
+  mimeType     String
+  storedName   String
+  path         String
+  // Empreinte côté client (nom:taille:lastModified) pour reprendre l'upload
+  // quand l'utilisateur redépose le même fichier
+  clientKey    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([updatedAt])
 }
 
 model ShareLink {

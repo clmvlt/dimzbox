@@ -12,6 +12,10 @@ export const config = {
     allowedMimeTypes: [] as string[],
     // Extensions bloquées (vide = tout autorisé)
     blockedExtensions: [] as string[],
+    // Taille max d'un morceau accepté par le serveur (le client envoie moins)
+    maxChunkSize: 64 * 1024 * 1024,
+    // Uploads inachevés sans activité depuis ce délai : supprimés
+    staleUploadHours: 48,
   },
   share: {
     // Durée par défaut d'un lien de partage : 7 jours

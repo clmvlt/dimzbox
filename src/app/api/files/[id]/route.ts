@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/auth";
-import fs from "node:fs/promises";
+import { isInsideUploadDir, removeFileQuietly } from "@/lib/storage";
 
 export async function DELETE(
   _request: Request,
@@ -23,11 +23,7 @@ export async function DELETE(
     }
 
     // Supprimer le fichier du disque (FILE-01: async au lieu de sync)
-    try {
-      await fs.unlink(file.path);
-    } catch {
-      // Fichier peut déjà avoir été supprimé
-    }
+    if (isInsideUploadDir(file.path)) await removeFileQuietly(file.path);
 
     // Supprimer de la base (cascade supprime les share links)
     await prisma.file.delete({ where: { id } });

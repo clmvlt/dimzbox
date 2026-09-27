@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
-import fs from "node:fs/promises";
+import { cleanupExpired } from "@/lib/storage";
 
 export async function POST() {
   const { error } = await requireAdmin();
@@ -9,26 +9,8 @@ export async function POST() {
   try {
     const now = new Date();
 
-    // Supprimer les liens expirés
-    const deletedLinks = await prisma.shareLink.deleteMany({
-      where: { expiresAt: { lt: now } },
-    });
-
-    // Supprimer les fichiers expirés
-    const expiredFiles = await prisma.file.findMany({
-      where: { expiresAt: { lt: now } },
-    });
-
-    let deletedFilesCount = 0;
-    for (const file of expiredFiles) {
-      try {
-        await fs.unlink(file.path);
-      } catch {
-        // Fichier peut déjà avoir été supprimé
-      }
-      await prisma.file.delete({ where: { id: file.id } });
-      deletedFilesCount++;
-    }
+    // Liens expirés, fichiers expirés, uploads abandonnés
+    const expired = await cleanupExpired();
 
     // Supprimer les sessions expirées
     const deletedSessions = await prisma.session.deleteMany({
@@ -40,6 +22,7 @@ export async function POST() {
       where: {
         isAnonymous: true,
         files: { none: {} },
+        uploads: { none: {} },
         sessions: { none: {} },
       },
       select: { id: true },
@@ -54,8 +37,7 @@ export async function POST() {
     }
 
     return Response.json({
-      deletedLinks: deletedLinks.count,
-      deletedFiles: deletedFilesCount,
+      ...expired,
       deletedSessions: deletedSessions.count,
       deletedUsers: deletedUsersCount,
     });

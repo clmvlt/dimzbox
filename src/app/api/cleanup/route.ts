@@ -1,7 +1,6 @@
-import { prisma } from "@/lib/prisma";
-import fs from "node:fs/promises";
+import { cleanupExpired } from "@/lib/storage";
 
-// LOW-03: Job de nettoyage des fichiers et liens expires
+// LOW-03: Job de nettoyage des fichiers, liens expirés et uploads abandonnés
 // Appelable via cron: GET /api/cleanup?secret=...
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,31 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const now = new Date();
-
-    const deletedLinks = await prisma.shareLink.deleteMany({
-      where: { expiresAt: { lt: now } },
-    });
-
-    const expiredFiles = await prisma.file.findMany({
-      where: { expiresAt: { lt: now } },
-    });
-
-    let deletedFilesCount = 0;
-    for (const file of expiredFiles) {
-      try {
-        await fs.unlink(file.path);
-      } catch {
-        // Fichier peut deja avoir ete supprime
-      }
-      await prisma.file.delete({ where: { id: file.id } });
-      deletedFilesCount++;
-    }
-
-    return Response.json({
-      deletedLinks: deletedLinks.count,
-      deletedFiles: deletedFilesCount,
-    });
+    return Response.json(await cleanupExpired());
   } catch (error) {
     console.error("Cleanup error:", error);
     return Response.json(

@@ -160,10 +160,18 @@ async function handleLogin(data: z.infer<typeof LoginSchema>) {
   // Transférer les fichiers de l'utilisateur anonyme courant
   const currentUser = await getSessionUser();
   if (currentUser && currentUser.isAnonymous && currentUser.id !== user.id) {
-    await prisma.file.updateMany({
-      where: { userId: currentUser.id },
-      data: { userId: user.id },
-    });
+    // Fichiers ET uploads en cours suivent l'utilisateur : un upload lancé
+    // avant la connexion continue sans interruption.
+    await prisma.$transaction([
+      prisma.file.updateMany({
+        where: { userId: currentUser.id },
+        data: { userId: user.id },
+      }),
+      prisma.upload.updateMany({
+        where: { userId: currentUser.id },
+        data: { userId: user.id },
+      }),
+    ]);
     await prisma.user.delete({ where: { id: currentUser.id } });
   } else {
     await deleteCurrentSession();

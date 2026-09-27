@@ -1,90 +1,49 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  crossOriginForbidden,
+  getClientIp,
+  isCrossOrigin,
+  isRateLimited,
+  tooManyRequests,
+} from "@/lib/security";
 
-// HIGH-03: Rate limiting en mémoire par IP
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 60_000; // 1 minute
-
+// HIGH-03: Rate limiting en mémoire par IP (requêtes / minute).
+// /api/upload n'est PAS couvert (voir matcher) : le proxy bufferise le body
+// en mémoire, ce qui est inacceptable pour des fichiers de plusieurs Go.
+// Les routes d'upload font leurs propres vérifications.
 const RATE_LIMITS: Record<string, number> = {
-  "/api/upload": 10,
-  "/api/download": 100,
-  "/api/files": 50,
+  "/api/account": 30,
+  "/api/download": 300,
+  "/api/files": 240,
+  "/api/admin": 240,
 };
-
-function getClientIp(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  const realIp = request.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-  return "127.0.0.1";
-}
-
-function isRateLimited(ip: string, route: string, limit: number): boolean {
-  const now = Date.now();
-  const key = `${ip}:${route}`;
-  const entry = rateLimitMap.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    return false;
-  }
-
-  entry.count++;
-  return entry.count > limit;
-}
-
-// Nettoyage periodique pour eviter les fuites memoire
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitMap) {
-    if (now > entry.resetAt) rateLimitMap.delete(key);
-  }
-}, RATE_LIMIT_WINDOW);
+const DEFAULT_LIMIT = 240;
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Rate limiting sur les routes API
-  if (pathname.startsWith("/api/")) {
-    const ip = getClientIp(request);
+  const matchedRoute = Object.keys(RATE_LIMITS).find((route) =>
+    pathname.startsWith(route)
+  );
+  const limit = matchedRoute ? RATE_LIMITS[matchedRoute] : DEFAULT_LIMIT;
+  const bucket = matchedRoute ?? "/api";
 
-    // Trouver la limite applicable
-    const matchedRoute = Object.keys(RATE_LIMITS).find((route) =>
-      pathname.startsWith(route)
-    );
-    const limit = matchedRoute ? RATE_LIMITS[matchedRoute] : 50;
-
-    if (isRateLimited(ip, matchedRoute ?? "/api", limit)) {
-      return Response.json(
-        { error: "Trop de requêtes, veuillez réessayer plus tard" },
-        { status: 429 }
-      );
-    }
+  if (isRateLimited(`${getClientIp(request)}:${bucket}`, limit)) {
+    return tooManyRequests();
   }
 
   // MED-01: Protection CSRF - valider l'Origin sur les mutations
   if (
-    pathname.startsWith("/api/") &&
-    ["POST", "PUT", "DELETE", "PATCH"].includes(request.method)
+    ["POST", "PUT", "DELETE", "PATCH"].includes(request.method) &&
+    isCrossOrigin(request)
   ) {
-    const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
-
-    // En développement, autoriser les requêtes sans Origin (ex: curl, Postman)
-    if (origin && host) {
-      const originHost = new URL(origin).host;
-      if (originHost !== host) {
-        return Response.json(
-          { error: "Requête cross-origin non autorisée" },
-          { status: 403 }
-        );
-      }
-    }
+    return crossOriginForbidden();
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: ["/api/((?!upload).*)"],
 };
