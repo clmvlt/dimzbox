@@ -4,6 +4,10 @@ import { readFileSync } from "fs";
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 const nextConfig: NextConfig = {
+  // Le déploiement construit dans un dossier séparé (NEXT_DIST_DIR=.next-build)
+  // pendant que le serveur continue de tourner sur .next, puis échange les deux :
+  // le site (et les uploads en cours) ne subissent qu'un redémarrage de quelques secondes.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   serverExternalPackages: ["@prisma/client", "@libsql/client", "@prisma/adapter-libsql"],
   allowedDevOrigins: ["192.168.1.120"],
   env: {
