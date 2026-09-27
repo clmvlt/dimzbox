@@ -3,4 +3,6 @@ export const CLIENT_CONFIG = {
   maxFileSize: 100 * 1024 * 1024 * 1024, // 100 Go
   maxStoragePerUser: 500 * 1024 * 1024 * 1024, // 500 Go
   blockedExtensions: [] as readonly string[],
+  maxExpirationDays: 30,
+  defaultExpirationDays: 7,
 } as const;

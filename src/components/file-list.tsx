@@ -1,14 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,16 +13,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ShareIcon,
-  TrashIcon,
+  Share2Icon,
+  Trash2Icon,
   DownloadIcon,
-  FileIcon as LucideFileIcon,
   Loader2Icon,
   AlertTriangleIcon,
+  LinkIcon,
+  SearchIcon,
+  InboxIcon,
+  CheckIcon,
 } from "lucide-react";
-import { formatFileSize, formatDate } from "@/lib/format";
+import { formatDate, formatFileSize, formatShortDate } from "@/lib/format";
+import { getLinkStatus } from "@/lib/share";
+import { copyQuickLink, type ShareLinkItem } from "@/lib/quick-share";
 import { FileIcon } from "./file-icon";
 import { ShareDialog } from "./share-dialog";
 import { toast } from "sonner";
@@ -42,58 +40,88 @@ export interface FileItem {
   mimeType: string;
   createdAt: string;
   totalDownloads: number;
-  shareLinks: { id: string }[];
+  shareLinks: ShareLinkItem[];
 }
+
+type SortKey = "recent" | "name" | "size";
 
 interface FileListProps {
   files: FileItem[];
   loading: boolean;
   onFileDeleted: (fileId: string) => void;
+  onLinksChanged?: () => void;
 }
 
-export function FileList({ files, loading, onFileDeleted }: FileListProps) {
+export function FileList({
+  files,
+  loading,
+  onFileDeleted,
+  onLinksChanged,
+}: FileListProps) {
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent");
   const [deletingFile, setDeletingFile] = useState<FileItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [shareFile, setShareFile] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const [shareFile, setShareFile] = useState<{ id: string; name: string } | null>(null);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Track des IDs connus pour animer les nouveaux fichiers
-  const knownIds = useRef<Set<string>>(new Set());
+  // Animer les fichiers qui viennent d'arriver
+  const knownIds = useRef<Set<string> | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
-
   useEffect(() => {
-    const fresh = new Set<string>();
-    for (const f of files) {
-      if (!knownIds.current.has(f.id)) {
-        fresh.add(f.id);
-      }
-    }
-    // Mettre à jour les IDs connus
+    if (loading) return;
+    const previous = knownIds.current;
     knownIds.current = new Set(files.map((f) => f.id));
-
+    if (!previous) return; // premier chargement : pas d'animation
+    const fresh = new Set(files.filter((f) => !previous.has(f.id)).map((f) => f.id));
     if (fresh.size > 0) {
       setNewIds(fresh);
-      // Retirer la classe d'animation après qu'elle a joué
-      const timer = setTimeout(() => setNewIds(new Set()), 500);
+      const timer = setTimeout(() => setNewIds(new Set()), 600);
       return () => clearTimeout(timer);
     }
-  }, [files]);
+  }, [files, loading]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q ? files.filter((f) => f.name.toLowerCase().includes(q)) : [...files];
+    if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    else if (sort === "size") list.sort((a, b) => b.size - a.size);
+    else list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return list;
+  }, [files, query, sort]);
+
+  async function quickCopy(file: FileItem) {
+    setCopyingId(file.id);
+    try {
+      const { created, copied } = await copyQuickLink(file.id, file.shareLinks);
+      if (copied) {
+        setCopiedId(file.id);
+        setTimeout(() => setCopiedId((id) => (id === file.id ? null : id)), 2000);
+        toast.success(created ? "Lien créé et copié" : "Lien copié", {
+          description: created ? "Valable 7 jours, téléchargements illimités" : undefined,
+        });
+      } else {
+        toast.error("Impossible de copier — ouvrez le partage pour voir le lien");
+      }
+      if (created) onLinksChanged?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur lors du partage");
+    }
+    setCopyingId(null);
+  }
 
   async function confirmDelete() {
     if (!deletingFile) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/files/${deletingFile.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/files/${deletingFile.id}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success(`"${deletingFile.name}" supprimé`);
+        toast.success(`« ${deletingFile.name} » supprimé`);
         onFileDeleted(deletingFile.id);
       } else {
-        const data = await res.json();
-        toast.error(data.error || "Erreur");
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "Erreur lors de la suppression");
       }
     } catch {
       toast.error("Erreur lors de la suppression");
@@ -102,173 +130,157 @@ export function FileList({ files, loading, onFileDeleted }: FileListProps) {
     setDeletingFile(null);
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2Icon className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (files.length === 0) {
-    return (
-      <div className="text-center py-8 sm:py-12 text-muted-foreground">
-        <LucideFileIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">Aucun fichier</p>
-        <p className="text-xs mt-1">
-          Uploadez votre premier fichier ci-dessus
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <>
-      {/* Mobile: card layout */}
-      <div className="space-y-2 md:hidden">
-        {files.map((file) => (
-          <div
-            key={file.id}
-            className={`rounded-lg border p-3 space-y-2 ${newIds.has(file.id) ? "animate-fade-in-up" : ""}`}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <FileIcon
-                fileName={file.name}
-                mimeType={file.mimeType}
-                size="sm"
+    <section className="overflow-hidden rounded-2xl border bg-card">
+      <header className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-3 sm:px-5">
+        <h2 className="font-semibold">
+          Mes fichiers
+          {files.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground tabular-nums">
+              {files.length}
+            </span>
+          )}
+        </h2>
+        {files.length > 0 && (
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            <div className="relative flex-1 sm:w-56 sm:flex-none">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Rechercher…"
+                className="pl-8"
+                aria-label="Rechercher un fichier"
               />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate" title={file.name}>
-                  {file.name}
-                </p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                  <span className="tabular-nums">{formatFileSize(file.size)}</span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span>{formatDate(file.createdAt)}</span>
-                </div>
-              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <DownloadIcon className="h-3 w-3" />
-                  <span className="tabular-nums">{file.totalDownloads}</span>
-                </span>
-                <Badge variant="secondary" className="text-[10px] tabular-nums px-1.5 py-0">
-                  {file.shareLinks.length} lien{file.shareLinks.length !== 1 ? "s" : ""}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() =>
-                    setShareFile({ id: file.id, name: file.name })
-                  }
-                  title="Partager"
-                >
-                  <ShareIcon className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setDeletingFile(file)}
-                  title="Supprimer"
-                >
-                  <TrashIcon className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            </div>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm dark:bg-input/30"
+              aria-label="Trier"
+            >
+              <option value="recent">Récents</option>
+              <option value="name">Nom</option>
+              <option value="size">Taille</option>
+            </select>
           </div>
-        ))}
-      </div>
+        )}
+      </header>
 
-      {/* Desktop: table layout */}
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40%]">Nom</TableHead>
-              <TableHead>Taille</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-center">Téléchargements</TableHead>
-              <TableHead className="text-center">Liens</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {files.map((file) => (
-              <TableRow
+      {loading ? (
+        <ul className="divide-y border-t">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
+              <Skeleton className="size-10 rounded-xl" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-1/2" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : files.length === 0 ? (
+        <div className="border-t px-4 py-12 text-center text-muted-foreground">
+          <InboxIcon className="mx-auto mb-3 size-10 opacity-40" />
+          <p className="text-sm font-medium text-foreground">Aucun fichier pour l&apos;instant</p>
+          <p className="mt-1 text-xs">Déposez un fichier ci-dessus pour obtenir un lien de partage.</p>
+        </div>
+      ) : visible.length === 0 ? (
+        <p className="border-t px-4 py-10 text-center text-sm text-muted-foreground">
+          Aucun fichier ne correspond à « {query} »
+        </p>
+      ) : (
+        <ul className="divide-y border-t">
+          {visible.map((file) => {
+            const activeLinks = file.shareLinks.filter((l) => getLinkStatus(l).active).length;
+            return (
+              <li
                 key={file.id}
-                className={newIds.has(file.id) ? "animate-fade-in-up" : ""}
+                className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 sm:px-5 ${
+                  newIds.has(file.id) ? "animate-fade-in-up" : ""
+                }`}
               >
-                <TableCell>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileIcon
-                      fileName={file.name}
-                      mimeType={file.mimeType}
-                      size="sm"
-                    />
-                    <span
-                      className="truncate text-sm font-medium"
-                      title={file.name}
-                    >
-                      {file.name}
+                <FileIcon fileName={file.name} mimeType={file.mimeType} size="md" className="hidden sm:flex" />
+                <FileIcon fileName={file.name} mimeType={file.mimeType} size="sm" className="sm:hidden" />
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium" title={file.name}>
+                    {file.name}
+                  </p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular-nums">
+                    <span>{formatFileSize(file.size)}</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span title={formatDate(file.createdAt)}>{formatShortDate(file.createdAt)}</span>
+                    {file.totalDownloads > 0 && (
+                      <>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span className="inline-flex items-center gap-0.5">
+                          <DownloadIcon className="size-3" />
+                          {file.totalDownloads}
+                        </span>
+                      </>
+                    )}
+                    {activeLinks > 0 && (
+                      <>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span className="text-primary">
+                          {activeLinks} lien{activeLinks > 1 ? "s" : ""} actif{activeLinks > 1 ? "s" : ""}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => quickCopy(file)}
+                    disabled={copyingId === file.id}
+                    aria-label={`Copier le lien de ${file.name}`}
+                  >
+                    {copyingId === file.id ? (
+                      <Loader2Icon className="animate-spin" />
+                    ) : copiedId === file.id ? (
+                      <CheckIcon className="text-success" />
+                    ) : (
+                      <LinkIcon />
+                    )}
+                    <span className="hidden sm:inline">
+                      {copiedId === file.id ? "Copié" : "Copier le lien"}
                     </span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
-                  {formatFileSize(file.size)}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {formatDate(file.createdAt)}
-                </TableCell>
-                <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <DownloadIcon className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-sm tabular-nums">
-                      {file.totalDownloads}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="secondary" className="text-xs tabular-nums">
-                    {file.shareLinks.length}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() =>
-                        setShareFile({ id: file.id, name: file.name })
-                      }
-                      title="Partager"
-                    >
-                      <ShareIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setDeletingFile(file)}
-                      title="Supprimer"
-                    >
-                      <TrashIcon className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setShareFile({ id: file.id, name: file.name })}
+                    title="Gérer les liens de partage"
+                    aria-label={`Gérer les liens de ${file.name}`}
+                  >
+                    <Share2Icon />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setDeletingFile(file)}
+                    title="Supprimer"
+                    aria-label={`Supprimer ${file.name}`}
+                  >
+                    <Trash2Icon className="text-destructive" />
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <ShareDialog
         open={!!shareFile}
         onOpenChange={(open) => !open && setShareFile(null)}
         fileId={shareFile?.id ?? null}
         fileName={shareFile?.name ?? ""}
+        onChanged={onLinksChanged}
       />
 
       <AlertDialog
@@ -284,35 +296,28 @@ export function FileList({ files, loading, onFileDeleted }: FileListProps) {
             <AlertDialogDescription>
               {deletingFile && (
                 <>
-                  <strong className="text-foreground">
-                    {deletingFile.name}
-                  </strong>{" "}
-                  sera définitivement supprimé, ainsi que tous ses liens de
-                  partage ({deletingFile.shareLinks.length} lien
-                  {deletingFile.shareLinks.length !== 1 ? "s" : ""}).
+                  <strong className="break-all text-foreground">{deletingFile.name}</strong>{" "}
+                  sera définitivement supprimé
+                  {deletingFile.shareLinks.length > 0 &&
+                    `, ainsi que ses ${deletingFile.shareLinks.length} lien${deletingFile.shareLinks.length > 1 ? "s" : ""} de partage`}
+                  .
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
-              Annuler
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={confirmDelete}
               disabled={isDeleting}
             >
-              {isDeleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <TrashIcon className="h-4 w-4 mr-2" />
-              )}
+              {isDeleting ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
               Supprimer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </section>
   );
 }
