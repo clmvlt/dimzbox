@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { RefreshCwIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
-export function UpdateBanner() {
+/**
+ * `busy` : des envois sont en cours. Recharger les interromprait, donc on
+ * propose la mise à jour seulement une fois qu'ils sont terminés.
+ */
+export function UpdateBanner({ busy = false }: { busy?: boolean }) {
   const { updateAvailable, clientVersion, serverVersion, refresh } =
     useVersionCheck();
   const [dismissed, setDismissed] = useState(false);
@@ -13,27 +17,31 @@ export function UpdateBanner() {
   if (!updateAvailable || dismissed) return null;
 
   return (
-    <div className="border-b bg-primary/5 border-primary/20">
-      <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-3">
-        <p className="text-xs sm:text-sm min-w-0">
-          <span className="font-medium">Mise à jour dispo</span>
-          <span className="hidden sm:inline font-medium">nible</span>
-          <span className="text-muted-foreground ml-1.5 sm:ml-2 text-[10px] sm:text-xs tabular-nums">
+    <div className="border-b border-primary/20 bg-primary/10">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-2">
+        <p className="min-w-0 text-xs sm:text-sm">
+          <span className="font-medium">Nouvelle version disponible</span>
+          <span className="ml-2 text-[10px] text-muted-foreground tabular-nums sm:text-xs">
             {clientVersion} → {serverVersion}
           </span>
+          {busy && (
+            <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
+              — rechargez après vos envois
+            </span>
+          )}
         </p>
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <Button size="sm" onClick={refresh} className="h-7 sm:h-8 text-xs sm:text-sm px-2.5 sm:px-3">
-            <RefreshCwIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 sm:mr-1.5" />
-            <span className="hidden sm:inline">Rafraîchir</span>
-            <span className="sm:hidden">MAJ</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="sm" onClick={refresh} disabled={busy}>
+            <RefreshCwIcon />
+            Recharger
           </Button>
           <Button
             variant="ghost"
             size="icon-xs"
             onClick={() => setDismissed(true)}
+            aria-label="Masquer"
           >
-            <XIcon className="h-3.5 w-3.5" />
+            <XIcon />
           </Button>
         </div>
       </div>
