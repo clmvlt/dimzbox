@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { DownloadIcon, CheckIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
+// Vrai lien <a download> : le navigateur gère le téléchargement (et sa reprise)
+// directement, sans passer par JavaScript.
 export function DownloadButton({
   token,
   fileName,
@@ -13,33 +16,21 @@ export function DownloadButton({
 }) {
   const [clicked, setClicked] = useState(false);
 
-  function handleDownload() {
-    setClicked(true);
-    const a = document.createElement("a");
-    a.href = `/api/download/${token}`;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setClicked(false), 3000);
-  }
-
   return (
-    <Button
-      onClick={handleDownload}
-      className="w-full transition-all duration-200 active:scale-[0.98]"
-      size="lg"
+    <a
+      href={`/api/download/${token}`}
+      download={fileName}
+      onClick={() => {
+        setClicked(true);
+        setTimeout(() => setClicked(false), 4000);
+      }}
+      className={cn(
+        buttonVariants({ size: "lg" }),
+        "h-11 w-full text-base transition-all active:scale-[0.98]"
+      )}
     >
-      <span
-        className={`inline-flex items-center gap-2 transition-all duration-200 ${clicked ? "scale-105" : ""}`}
-      >
-        {clicked ? (
-          <CheckIcon className="h-4 w-4" />
-        ) : (
-          <DownloadIcon className="h-4 w-4" />
-        )}
-        {clicked ? "Téléchargement lancé" : "Télécharger"}
-      </span>
-    </Button>
+      {clicked ? <CheckIcon /> : <DownloadIcon />}
+      {clicked ? "Téléchargement lancé" : "Télécharger"}
+    </a>
   );
 }
