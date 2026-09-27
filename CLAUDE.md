@@ -67,8 +67,11 @@ Site web de partage de fichiers.
 - npm run version:minor — bumper 0.0.x → 0.1.0
 - npm run version:major — bumper 0.x.x → 1.0.0
 - npm run deploy — build + upload SSH + install sur le serveur
-  (build dans .next-build via NEXT_DIST_DIR pendant que .next sert, puis échange + pm2 restart ;
-  uploads/ et la base ne sont jamais copiés/restaurés, sauvegarde SQLite dans prisma/backups/)
+  (build dans .next-build via NEXT_DIST_DIR pendant que .next sert ; puis arrêt du service
+  systemd `filebox`, migration Prisma, échange des builds, redémarrage et contrôle de /api/version
+  avec retour arrière automatique ; uploads/ et la base ne sont jamais copiés/restaurés,
+  sauvegarde SQLite dans prisma/backups/)
+- En prod, le site tourne sous systemd (`filebox.service`, root), pas sous pm2
 - La version est injectée au build via NEXT_PUBLIC_APP_VERSION
 - Le client poll /api/version toutes les 30s et affiche une bannière si mise à jour dispo
 - Config deploy dans .env.deploy (gitignored)
