@@ -1,136 +1,174 @@
+import { stat } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
-import fs from "node:fs";
-import { access } from "node:fs/promises";
-import path from "node:path";
-import { Readable } from "node:stream";
-import { config } from "@/lib/config";
+import { createFileStream } from "@/lib/file-stream";
+import { isInsideUploadDir } from "@/lib/storage";
+import { getLinkStatus } from "@/lib/share";
+import { addDownloadGrant, hasDownloadGrant } from "@/lib/download-grants";
+import { getClientIp } from "@/lib/security";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ token: string }> }
+type Params = { params: Promise<{ token: string }> };
+
+const jsonError = (error: string, status: number) =>
+  Response.json({ error }, { status });
+
+function contentDisposition(name: string) {
+  const ascii = name.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  const encoded = encodeURIComponent(name).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/** FILE-03: `bytes=a-b`, `bytes=a-` et `bytes=-n`. Multi-plages ignorées (200). */
+function parseRange(header: string | null, size: number) {
+  if (!header) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match || (match[1] === "" && match[2] === "")) return null;
+
+  if (match[1] === "") {
+    const suffix = Number(match[2]);
+    if (suffix === 0 || size === 0) return "invalid" as const;
+    return { start: Math.max(0, size - suffix), end: size - 1 };
+  }
+
+  const start = Number(match[1]);
+  const end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
+  if (start >= size || start > end) return "invalid" as const;
+  return { start, end };
+}
+
+async function resolveLink(token: string) {
+  const link = await prisma.shareLink.findUnique({
+    where: { token },
+    include: { file: true },
+  });
+  if (!link) return { error: jsonError("Lien non trouvé", 404) };
+
+  // HIGH-01: le chemin doit rester sous le dossier d'uploads
+  if (!isInsideUploadDir(link.file.path)) {
+    return { error: jsonError("Accès interdit", 403) };
+  }
+
+  let size: number;
+  try {
+    size = (await stat(link.file.path)).size;
+  } catch {
+    return { error: jsonError("Fichier introuvable sur le serveur", 404) };
+  }
+
+  return { link, size };
+}
+
+function baseHeaders(
+  link: { file: { id: string; originalName: string; createdAt: Date } },
+  size: number
 ) {
+  return {
+    // MED-03: jamais interprété par le navigateur
+    "Content-Type": "application/octet-stream",
+    "Content-Disposition": contentDisposition(link.file.originalName),
+    "Accept-Ranges": "bytes",
+    ETag: `"${link.file.id}-${size}"`,
+    "Last-Modified": link.file.createdAt.toUTCString(),
+    "Cache-Control": "private, no-cache",
+    "X-Content-Type-Options": "nosniff",
+  };
+}
+
+/**
+ * Compte un nouveau téléchargement. Pour un lien limité, l'incrément est
+ * conditionnel et atomique (LOW-02) : false si le quota est déjà atteint.
+ */
+async function countDownload(link: { id: string; maxDownloads: number | null }) {
+  if (link.maxDownloads === null) {
+    await prisma.shareLink.update({
+      where: { id: link.id },
+      data: { downloadCount: { increment: 1 } },
+    });
+    return true;
+  }
+  const updated = await prisma.$executeRaw`
+    UPDATE "ShareLink" SET "downloadCount" = "downloadCount" + 1
+    WHERE "id" = ${link.id} AND "downloadCount" < "maxDownloads"`;
+  return updated > 0;
+}
+
+// HEAD — métadonnées seules. Sans cette route, Next exécuterait GET et
+// chaque HEAD (aperçus de liens, gestionnaires de DL) compterait un téléchargement.
+export async function HEAD(request: Request, { params }: Params) {
   try {
     const { token } = await params;
+    const resolved = await resolveLink(token);
+    if (resolved.error) return new Response(null, { status: resolved.error.status });
+    const { link, size } = resolved;
 
-    const link = await prisma.shareLink.findUnique({
-      where: { token },
-      include: { file: true },
+    const status = getLinkStatus(link);
+    const granted = hasDownloadGrant(link.id, getClientIp(request));
+    if (status.expired || (status.exhausted && !granted)) {
+      return new Response(null, { status: 410 });
+    }
+
+    return new Response(null, {
+      headers: { ...baseHeaders(link, size), "Content-Length": String(size) },
     });
+  } catch (error) {
+    console.error("Download HEAD error:", error);
+    return new Response(null, { status: 500 });
+  }
+}
 
-    if (!link) {
-      return Response.json({ error: "Lien non trouvé" }, { status: 404 });
+export async function GET(request: Request, { params }: Params) {
+  try {
+    const { token } = await params;
+    const resolved = await resolveLink(token);
+    if (resolved.error) return resolved.error;
+    const { link, size } = resolved;
+
+    if (getLinkStatus(link).expired) {
+      return jsonError("Ce lien a expiré", 410);
     }
 
-    // Vérifier l'expiration
-    if (link.expiresAt && link.expiresAt < new Date()) {
-      return Response.json({ error: "Ce lien a expiré" }, { status: 410 });
-    }
+    const headers = baseHeaders(link, size);
 
-    // Vérifier le nombre max de téléchargements (LOW-02: atomic update)
-    if (link.maxDownloads && link.downloadCount >= link.maxDownloads) {
-      return Response.json(
-        { error: "Nombre maximum de téléchargements atteint" },
-        { status: 410 }
-      );
+    let range = parseRange(request.headers.get("range"), size);
+    const ifRange = request.headers.get("if-range");
+    if (ifRange && ifRange !== headers.ETag && ifRange !== headers["Last-Modified"]) {
+      range = null; // le fichier a changé : renvoyer le fichier complet
     }
-
-    // HIGH-01: Valider que le chemin est bien sous le répertoire d'uploads
-    const uploadDir = path.resolve(config.upload.uploadDir);
-    const resolvedPath = path.resolve(link.file.path);
-    if (!resolvedPath.startsWith(uploadDir)) {
-      return Response.json({ error: "Accès interdit" }, { status: 403 });
-    }
-
-    // Vérifier que le fichier existe sur le disque (async)
-    try {
-      await access(resolvedPath);
-    } catch {
-      return Response.json(
-        { error: "Fichier introuvable sur le serveur" },
-        { status: 404 }
-      );
-    }
-
-    // LOW-02: Incrémenter atomiquement avec condition pour éviter la race condition
-    if (link.maxDownloads) {
-      const result = await prisma.$executeRawUnsafe(
-        `UPDATE "ShareLink" SET "downloadCount" = "downloadCount" + 1 WHERE "id" = ? AND "downloadCount" < ?`,
-        link.id,
-        link.maxDownloads
-      );
-      if (result === 0) {
-        return Response.json(
-          { error: "Nombre maximum de téléchargements atteint" },
-          { status: 410 }
-        );
-      }
-    } else {
-      await prisma.shareLink.update({
-        where: { id: link.id },
-        data: { downloadCount: { increment: 1 } },
+    if (range === "invalid") {
+      return new Response(null, {
+        status: 416,
+        headers: { "Content-Range": `bytes */${size}` },
       });
     }
 
-    // FILE-01: Utiliser la taille depuis la DB au lieu de statSync
-    const fileSize = Number(link.file.size);
-
-    // Encoder le nom du fichier pour le header Content-Disposition
-    const encodedName = encodeURIComponent(link.file.originalName);
-
-    // FILE-03: Support Range requests pour la reprise de téléchargement
-    const rangeHeader = request.headers.get("range");
-
-    if (rangeHeader) {
-      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-      if (match) {
-        const start = parseInt(match[1], 10);
-        const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
-
-        if (start >= fileSize || end >= fileSize || start > end) {
-          return new Response(null, {
-            status: 416,
-            headers: {
-              "Content-Range": `bytes */${fileSize}`,
-            },
-          });
-        }
-
-        const nodeStream = fs.createReadStream(resolvedPath, { start, end });
-        const webStream = Readable.toWeb(nodeStream) as ReadableStream;
-
-        return new Response(webStream, {
-          status: 206,
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "Content-Length": String(end - start + 1),
-            "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-            "Content-Disposition": `attachment; filename*=UTF-8''${encodedName}`,
-            "Accept-Ranges": "bytes",
-            "X-Content-Type-Options": "nosniff",
-          },
-        });
+    // Un client déjà compté récemment (reprise, multi-connexions, re-clic)
+    // ne consomme pas de téléchargement supplémentaire.
+    const ip = getClientIp(request);
+    if (!hasDownloadGrant(link.id, ip)) {
+      if (!(await countDownload(link))) {
+        return jsonError("Nombre maximum de téléchargements atteint", 410);
       }
+      addDownloadGrant(link.id, ip);
     }
 
-    // Streamer le fichier complet
-    const nodeStream = fs.createReadStream(resolvedPath);
-    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+    if (range) {
+      return new Response(createFileStream(link.file.path, range.start, range.end), {
+        status: 206,
+        headers: {
+          ...headers,
+          "Content-Length": String(range.end - range.start + 1),
+          "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
+        },
+      });
+    }
 
-    return new Response(webStream, {
-      headers: {
-        // MED-03: Forcer application/octet-stream pour empêcher l'exécution de contenu
-        "Content-Type": "application/octet-stream",
-        "Content-Length": String(fileSize),
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodedName}`,
-        "Accept-Ranges": "bytes",
-        "X-Content-Type-Options": "nosniff",
-      },
+    return new Response(createFileStream(link.file.path, 0, size - 1), {
+      headers: { ...headers, "Content-Length": String(size) },
     });
   } catch (error) {
     console.error("Download error:", error);
-    return Response.json(
-      { error: "Erreur lors du téléchargement" },
-      { status: 500 }
-    );
+    return jsonError("Erreur lors du téléchargement", 500);
   }
 }

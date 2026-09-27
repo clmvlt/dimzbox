@@ -24,6 +24,9 @@ export const config = {
     maxExpirationDays: 30,
     // Longueur du token de partage
     tokenLength: 12,
+    // Un même client (IP) qui reprend / relance un téléchargement
+    // dans ce délai n'est compté qu'une fois
+    downloadGrantHours: 6,
   },
   cleanup: {
     // Supprimer les fichiers expirés automatiquement
